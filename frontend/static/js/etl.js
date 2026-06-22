@@ -1,4 +1,4 @@
-/* etl.js — Ejecución ETL, subida de archivo, historial */
+let etlPollInterval = null;
 
 async function ejecutarETL() {
   const btn = document.getElementById('btn-run-etl');
@@ -11,13 +11,14 @@ async function ejecutarETL() {
 
   try {
     const res = await authFetch('/api/etl/run/', { method: 'POST' });
-    if (!res) return;
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
 
     if (res.ok) {
       mostrarResultado(data);
       cargarHistorial();
       cargarEstadisticasReales();
+    } else if (res.status === 404) {
+      mostrarMensajeNoDataset();
     } else {
       mostrarErrorDetallado(data, res.status);
     }
@@ -40,19 +41,17 @@ async function subirDataset() {
   progress.classList.add('active');
 
   try {
-    const csrfToken = getCsrfToken();
-
     const res = await authFetch('/api/etl/upload/', {
       method: 'POST',
-      headers: { 'X-CSRFToken': csrfToken },
       body: formData
     });
 
-    if (!res) return;
-
     const data = await res.json().catch(() => ({}));
 
-    if (res.ok) {
+    if (res.status === 202) {
+      mostrarAceptado(data);
+      iniciarPollingEstado();
+    } else if (res.ok) {
       mostrarResultado(data);
       cargarHistorial();
       cargarEstadisticasReales();
@@ -64,6 +63,86 @@ async function subirDataset() {
   } finally {
     progress.classList.remove('active');
   }
+}
+
+function iniciarPollingEstado() {
+  if (etlPollInterval) clearInterval(etlPollInterval);
+
+  const resultado = document.getElementById('etl-resultado');
+  resultado.classList.add('active');
+
+  const badge = document.getElementById('etl-status-badge');
+  badge.className = 'etl-status-badge etl-status--proceso';
+  badge.textContent = 'Procesando...';
+
+  document.getElementById('etl-metricas').innerHTML = `
+    <div style="grid-column: 1 / -1;">
+      <div style="background:rgba(16,229,204,0.05); border:1px solid rgba(16,229,204,0.15); border-radius:12px; padding:1.25rem; color:#1a2635;">
+        <div style="font-weight:700; margin-bottom:0.4rem; color:#10e5cc;">
+          <div class="spinner-border spinner-border-sm me-1" role="status"></div>
+          Archivo recibido. Procesando en segundo plano...
+        </div>
+        <div id="etl-status-msg" style="font-size:0.85rem; color:#8899aa;">Iniciando...</div>
+      </div>
+    </div>
+  `;
+
+  etlPollInterval = setInterval(async () => {
+    try {
+      const res = await authFetch('/api/etl/status/');
+      if (!res) return;
+      const data = await res.json();
+
+      const msgEl = document.getElementById('etl-status-msg');
+      if (msgEl) {
+        const detalle = data.detalle ? ` - ${data.detalle}` : '';
+        msgEl.textContent = `[${data.fase || '...'}] ${data.mensaje || ''}${detalle}`;
+      }
+
+      if (!data.activo) {
+        clearInterval(etlPollInterval);
+        etlPollInterval = null;
+        await cargarResultadoFinal();
+        cargarHistorial();
+        cargarEstadisticasReales();
+      }
+    } catch(e) {
+      console.error('Polling error:', e);
+    }
+  }, 1500);
+}
+
+async function cargarResultadoFinal() {
+  try {
+    const res = await authFetch('/api/etl/historial/');
+    if (!res) return;
+    const items = await res.json();
+    if (items && items.length > 0) {
+      mostrarResultado(items[0]);
+    }
+  } catch(e) {
+    console.error('Error cargando resultado final:', e);
+  }
+}
+
+function mostrarAceptado(data) {
+  const resultado = document.getElementById('etl-resultado');
+  resultado.classList.add('active');
+
+  const badge = document.getElementById('etl-status-badge');
+  badge.className = 'etl-status-badge etl-status--proceso';
+  badge.textContent = 'En cola';
+
+  document.getElementById('etl-metricas').innerHTML = `
+    <div style="grid-column: 1 / -1;">
+      <div style="background:rgba(16,185,129,0.05); border:1px solid rgba(16,185,129,0.15); border-radius:12px; padding:1.25rem; color:#1a2635;">
+        <div style="font-weight:700; margin-bottom:0.4rem; color:#059669;">
+          <i class="bi bi-check-circle-fill me-1"></i>Archivo recibido correctamente
+        </div>
+        <div style="font-size:0.85rem; color:#8899aa;">${data.message || 'Procesando en segundo plano...'}</div>
+      </div>
+    </div>
+  `;
 }
 
 function handleFileSelect(input) {
@@ -78,6 +157,8 @@ function handleFileSelect(input) {
 }
 
 function mostrarErrorDetallado(data, statusCode) {
+  if (etlPollInterval) { clearInterval(etlPollInterval); etlPollInterval = null; }
+
   const resultado = document.getElementById('etl-resultado');
   resultado.classList.add('active');
 
@@ -102,24 +183,48 @@ function mostrarErrorDetallado(data, statusCode) {
 }
 
 function mostrarErrorConexion(mensaje) {
+  if (etlPollInterval) { clearInterval(etlPollInterval); etlPollInterval = null; }
+
   const resultado = document.getElementById('etl-resultado');
   resultado.classList.add('active');
 
   const badge = document.getElementById('etl-status-badge');
   badge.className = 'etl-status-badge etl-status--error';
-  badge.textContent = 'Error de conexión';
+  badge.textContent = 'Error de conexion';
 
   document.getElementById('etl-metricas').innerHTML = `
     <div style="grid-column: 1 / -1;">
       <div style="background:rgba(249,115,22,0.05); border:1px solid rgba(249,115,22,0.15); border-radius:12px; padding:1.25rem; color:#1a2635;">
         <div style="font-weight:700; margin-bottom:0.4rem; color:#ea580c;">
-          <i class="bi bi-wifi-off me-1"></i>Error de conexión
+          <i class="bi bi-wifi-off me-1"></i>Error de conexion
         </div>
         <div style="font-size:0.85rem; color:#8899aa;">${mensaje}</div>
       </div>
     </div>
   `;
   document.getElementById('etl-log').textContent = 'Sin log disponible';
+}
+
+function mostrarMensajeNoDataset() {
+  const resultado = document.getElementById('etl-resultado');
+  resultado.classList.add('active');
+  const badge = document.getElementById('etl-status-badge');
+  badge.className = 'etl-status-badge etl-status--pendiente';
+  badge.textContent = 'Sin Dataset';
+  document.getElementById('etl-metricas').innerHTML = `
+    <div style="grid-column: 1 / -1;">
+      <div style="background:rgba(16,229,204,0.05); border:1px solid rgba(16,229,204,0.15); border-radius:12px; padding:1.25rem; color:#1a2635;">
+        <div style="font-weight:700; margin-bottom:0.4rem; color:#0bb8a4;">
+          <i class="bi bi-cloud-arrow-up me-1"></i>Sube un dataset primero
+        </div>
+        <div style="font-size:0.85rem; color:#8899aa;">
+          Usa el panel "Subir Dataset" de la derecha para cargar un archivo CSV o Excel.
+          El ETL se ejecutará automáticamente al subirlo.
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('etl-log').textContent = '';
 }
 
 function mostrarResultado(data) {
@@ -194,7 +299,7 @@ async function cargarHistorial() {
     tbody.innerHTML = data.map(r => `
       <tr>
         <td style="font-size:0.82rem;">${formatFecha(r.fecha_ejecucion)}</td>
-        <td style="font-size:0.82rem;">${r.usuario_nombre || '—'}</td>
+        <td style="font-size:0.82rem;">${r.usuario_nombre || '---'}</td>
         <td><span style="background:rgba(136,153,170,0.12); color:#5a6577; padding:0.25rem 0.6rem; border-radius:6px; font-size:0.75rem; font-weight:600;">${r.registros_entrada}</span></td>
         <td><span style="background:rgba(16,185,129,0.1); color:#059669; padding:0.25rem 0.6rem; border-radius:6px; font-size:0.75rem; font-weight:600;">${r.registros_limpios}</span></td>
         <td><span style="background:rgba(249,115,22,0.1); color:#ea580c; padding:0.25rem 0.6rem; border-radius:6px; font-size:0.75rem; font-weight:600;">${r.duplicados_eliminados}</span></td>
@@ -227,7 +332,7 @@ function animateValue(id, target) {
 }
 
 function formatFecha(f) {
-  return f ? new Date(f).toLocaleString('es-CO', { dateStyle:'short', timeStyle:'short' }) : '—';
+  return f ? new Date(f).toLocaleString('es-CO', { dateStyle:'short', timeStyle:'short' }) : '---';
 }
 
 function badgeEstado(e) {
@@ -240,36 +345,29 @@ function badgeEstado(e) {
   return map[e] || 'etl-status--pendiente';
 }
 
-function getCsrfToken() {
-  const name = 'csrftoken';
-  const cookies = document.cookie ? document.cookie.split(';') : [];
-  for (const c of cookies) {
-    const cookie = c.trim();
-    if (cookie.startsWith(name + '=')) {
-      return decodeURIComponent(cookie.substring(name.length + 1));
-    }
-  }
-  return '';
-}
+async function resetData() {
+  if (!confirm('Esto eliminara todos los pacientes, historial ETL y KPIs. Continuar?')) return;
 
-async function generarDataset() {
-  const btn = document.getElementById('btn-generar-dataset');
+  const btn = document.getElementById('btn-reset-data');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>Generando...';
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>Restableciendo...';
+
   try {
-    const res = await authFetch('/api/etl/generar-dataset/', { method: 'POST' });
-    if (!res) return;
+    const res = await authFetch('/api/etl/reset/', { method: 'DELETE' });
     const data = await res.json();
     if (res.ok) {
-      alert('Dataset generado correctamente. Ejecuta el ETL para procesarlo.');
+      alert(data.message || 'Datos restablecidos correctamente');
+      cargarHistorial();
+      cargarEstadisticasReales();
     } else {
-      alert('Error: ' + (data.error || 'Desconocido'));
+      alert('Error: ' + (data.error || 'Error desconocido'));
     }
-  } catch {
-    alert('Error de conexión al generar dataset');
+  } catch(e) {
+    alert('Error de conexion: ' + e.message);
   }
+
   btn.disabled = false;
-  btn.innerHTML = '<i class="bi bi-plus-circle"></i>Generar Dataset';
+  btn.innerHTML = '<i class="bi bi-trash3"></i>Restablecer Datos';
 }
 
 document.addEventListener('DOMContentLoaded', () => {

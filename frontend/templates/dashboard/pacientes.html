@@ -190,10 +190,11 @@
     background: linear-gradient(to right, rgba(16,229,204,0.03), rgba(16,229,204,0.01));
   }
   .patients-table tbody tr.critico-row {
-    background: rgba(255,95,109,0.03);
+    background: rgba(255,95,109,0.04);
+    border-left: 3px solid #ff375f;
   }
   .patients-table tbody tr.critico-row:hover {
-    background: rgba(255,95,109,0.06);
+    background: rgba(255,95,109,0.08);
   }
   .patients-table td {
     padding: 0.75rem 1rem;
@@ -226,10 +227,15 @@
   .glucose-high { color: #dc2626; font-weight: 600; }
   .pressure-high { color: #dc2626; font-weight: 600; }
   .imc-sub { font-size: 0.7rem; color: #8899aa; display: block; margin-top: 2px; }
+  @keyframes critico-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.15); }
+  }
   .critico-icon {
     color: #ff5f6d;
     font-size: 1rem;
     filter: drop-shadow(0 0 4px rgba(255,95,109,0.3));
+    animation: critico-pulse 2s ease-in-out infinite;
   }
   .stable-icon { color: #10b981; font-size: 1rem; }
   .table-footer {
@@ -314,8 +320,8 @@
     <span class="filter-label">Sexo</span>
     <select class="form-select form-select-sm" id="filtro-sexo" onchange="cargarPacientes()">
       <option value="">Todos</option>
-      <option value="M">Masculino</option>
-      <option value="F">Femenino</option>
+      <option value="Masculino">Masculino</option>
+      <option value="Femenino">Femenino</option>
     </select>
   </div>
   <div class="filter-divider"></div>

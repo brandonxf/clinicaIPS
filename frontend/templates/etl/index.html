@@ -385,12 +385,12 @@
       <button class="etl-btn etl-btn--primary" id="btn-run-etl" onclick="ejecutarETL()">
         <i class="bi bi-lightning-charge-fill"></i>Ejecutar ETL Ahora
       </button>
-      <button class="etl-btn etl-btn--secondary" id="btn-generar-dataset" onclick="generarDataset()">
-        <i class="bi bi-plus-circle"></i>Generar Dataset (1800 registros)
-      </button>
       <a href="/api/etl/exportar-csv/" class="etl-btn etl-btn--secondary" id="btn-download-csv" style="text-decoration:none; text-align:center;">
         <i class="bi bi-download"></i>Descargar Dataset Limpio (CSV)
       </a>
+      <button class="etl-btn etl-btn--secondary" id="btn-reset-data" onclick="resetData()" style="border-color:#ff375f; color:#ff375f;">
+        <i class="bi bi-trash3"></i>Restablecer Datos
+      </button>
       <div class="etl-progress" id="etl-progress">
         <div class="etl-progress-bar"><div class="etl-progress-bar-fill"></div></div>
         <div class="etl-progress-text">

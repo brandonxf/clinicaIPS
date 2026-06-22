@@ -206,6 +206,8 @@ async function predecirPaciente() {
       };
       const c = colorMap[data.riesgo_predicho] || colorMap.bajo;
       const pct = (data.probabilidad * 100).toFixed(1);
+      const p = data.paciente || {};
+      const nombreCompleto = [p.nombres, p.apellidos].filter(Boolean).join(' ') || '—';
 
       const distHtml = Object.entries(data.distribucion_clases || {})
         .map(([k, v]) => {
@@ -236,6 +238,14 @@ async function predecirPaciente() {
               <div style="font-size:1.5rem; font-weight:700; color:#080e1c; font-family:'Space Grotesk',sans-serif;">${pct}%</div>
               <div style="font-size:0.7rem; color:#8899aa;">Probabilidad</div>
             </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; padding:0.75rem; background:rgba(255,255,255,0.6); border-radius:10px; margin-bottom:1rem;">
+            <div><span style="font-size:0.65rem; text-transform:uppercase; color:#8899aa; font-weight:700;">Paciente</span><div style="font-weight:600; color:#080e1c;">${nombreCompleto}</div></div>
+            <div><span style="font-size:0.65rem; text-transform:uppercase; color:#8899aa; font-weight:700;">Edad / Sexo</span><div style="font-weight:600; color:#080e1c;">${p.edad ?? '—'} años / ${p.sexo === 'Masculino' ? '♂' : p.sexo === 'Femenino' ? '♀' : p.sexo || '—'}</div></div>
+            <div><span style="font-size:0.65rem; text-transform:uppercase; color:#8899aa; font-weight:700;">IMC</span><div style="font-weight:600; color:#080e1c;">${p.imc ? p.imc.toFixed(1) : '—'}</div></div>
+            <div><span style="font-size:0.65rem; text-transform:uppercase; color:#8899aa; font-weight:700;">Glucosa</span><div style="font-weight:600; color:${p.glucosa > 126 ? '#dc2626' : '#080e1c'};">${p.glucosa ?? '—'}</div></div>
+            <div><span style="font-size:0.65rem; text-transform:uppercase; color:#8899aa; font-weight:700;">P. Sistólica</span><div style="font-weight:600; color:${p.presion_sistolica > 140 ? '#dc2626' : '#080e1c'};">${p.presion_sistolica ?? '—'}</div></div>
+            <div><span style="font-size:0.65rem; text-transform:uppercase; color:#8899aa; font-weight:700;">Diagnóstico</span><div style="font-weight:600; color:#080e1c;">${p.diagnostico_preliminar || '—'}</div></div>
           </div>
           <div style="height:6px; border-radius:6px; background:#e5e7eb; overflow:hidden; margin-bottom:1rem;">
             <div style="height:100%; width:${pct}%; background:${c.bar}; border-radius:6px; transition:width 0.8s ease;"></div>

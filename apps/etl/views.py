@@ -1,27 +1,25 @@
-import os, csv
+import os, csv, uuid, threading
 from django.conf import settings
 from django.http import HttpResponse
-from django.core.management import call_command
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from apps.authentication.permissions import EsAnalistaOAdministrador, EsMedicoOAdministrador
 from rest_framework.filters import SearchFilter
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-from .models import Paciente, HistorialETL
+from .models import Paciente, HistorialETL, ETLTask, DashboardKPIs
 from .serializers import PacienteSerializer, HistorialETLSerializer
-from .etl_engine import ejecutar_etl
+from .services import PipelineETL
+from .analytics import recalcular_kpis_desde_db
+from .tasks import ejecutar_pipeline as tarea_ejecutar_pipeline
 
 
 class PacienteViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    Lista y detalle de pacientes procesados por el ETL.
-    Soporta filtrado por riesgo, sexo y estado crítico.
-    También permite búsqueda global por nombres, apellidos e ID.
-    """
     queryset = Paciente.objects.all()
     serializer_class = PacienteSerializer
     permission_classes = [IsAuthenticated]
@@ -42,9 +40,9 @@ class PacienteViewSet(viewsets.ReadOnlyModelViewSet):
             OpenApiParameter('riesgo', OpenApiTypes.STR,
                              description='Filtrar por nivel de riesgo: bajo, medio, alto, critico'),
             OpenApiParameter('sexo', OpenApiTypes.STR,
-                             description='Filtrar por sexo: M, F'),
+                             description='Filtrar por sexo: Masculino, Femenino'),
             OpenApiParameter('critico', OpenApiTypes.STR,
-                             description='Solo pacientes críticos: true'),
+                             description='Solo pacientes criticos: true'),
         ],
         summary='Listar pacientes',
     )
@@ -65,32 +63,42 @@ class PacienteViewSet(viewsets.ReadOnlyModelViewSet):
 @extend_schema(
     tags=['etl'],
     summary='Ejecutar proceso ETL',
-    description='Ejecuta Extract → Transform → Load sobre el dataset clínico almacenado en el servidor.',
-    responses={200: HistorialETLSerializer},
+    description='Ejecuta Extract -> Transform -> Load sobre el dataset clinico almacenado en el servidor.',
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, EsAnalistaOAdministrador])
 def ejecutar_etl_view(request):
-    filepath = str(settings.BASE_DIR / 'datasets' / 'dataset_clinico.xlsx')
+    dataset_dir = settings.BASE_DIR / 'datasets'
+    filepath = str(dataset_dir / 'dataset_clinico.xlsx')
     if not os.path.exists(filepath):
-        # Intentar con .csv
-        filepath_csv = str(settings.BASE_DIR / 'datasets' / 'dataset_clinico.csv')
-        if os.path.exists(filepath_csv):
-            filepath = filepath_csv
-        else:
-            return Response(
-                {'error': 'Dataset no encontrado. Sube un archivo primero usando /api/etl/upload/'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-    historial = ejecutar_etl(filepath, usuario=request.user)
-    return Response(HistorialETLSerializer(historial).data)
+        filepath = str(dataset_dir / 'dataset_clinico.csv')
+    if not os.path.exists(filepath):
+        upload_dir = dataset_dir / 'temp_uploads'
+        if os.path.isdir(upload_dir):
+            archivos = sorted(os.listdir(upload_dir), reverse=True)
+            for f in archivos:
+                candidate = str(upload_dir / f)
+                if candidate.endswith(('.xlsx', '.xls', '.csv')):
+                    filepath = candidate
+                    break
+    if not os.path.exists(filepath):
+        return Response(
+            {'error': 'No hay dataset disponible. Sube un archivo usando el panel ETL.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    folder = os.path.dirname(filepath)
+    historial = PipelineETL(filepath, usuario_id=request.user.id)
+    historial.extract()
+    historial.transform()
+    historial.load()
+    last = HistorialETL.objects.order_by('-id').first()
+    return Response(HistorialETLSerializer(last).data)
 
 
 @extend_schema(
     tags=['etl'],
-    summary='Subir dataset y ejecutar ETL',
-    description='Sube un archivo CSV o Excel. El proceso ETL se ejecuta automáticamente.',
-    responses={200: HistorialETLSerializer},
+    summary='Subir dataset y ejecutar ETL (asincrono)',
+    description='Sube un archivo CSV o Excel. El proceso ETL se ejecuta en segundo plano.',
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, EsAnalistaOAdministrador])
@@ -99,9 +107,8 @@ def subir_dataset(request):
     try:
         archivo = request.FILES.get('archivo')
         if not archivo:
-            return Response({'error': 'No se envió archivo'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'No se envio archivo'}, status=status.HTTP_400_BAD_REQUEST)
 
-        os.makedirs(settings.DATASETS_DIR, exist_ok=True)
         ext = os.path.splitext(archivo.name)[1].lower()
         if ext not in ['.csv', '.xlsx', '.xls']:
             return Response(
@@ -109,39 +116,77 @@ def subir_dataset(request):
                 status=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
             )
 
-        destino = os.path.join(settings.DATASETS_DIR, f'dataset_clinico{ext}')
-        with open(destino, 'wb') as f:
+        upload_dir = os.path.join(settings.DATASETS_DIR, 'temp_uploads')
+        os.makedirs(upload_dir, exist_ok=True)
+        nombre_unico = f"{uuid.uuid4().hex}{ext}"
+        ruta_guardado = os.path.join(upload_dir, nombre_unico)
+
+        with open(ruta_guardado, 'wb+') as destino:
             for chunk in archivo.chunks():
-                f.write(chunk)
+                destino.write(chunk)
 
-        historial = ejecutar_etl(destino, usuario=request.user)
-        data = HistorialETLSerializer(historial).data
+        usuario_id = request.user.id if request.user.is_authenticated else None
 
-        if historial.estado == 'error':
-            # En caso de error de ETL, devolver 400/422 para que el frontend sepa que falló.
-            return Response(data, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        thread = threading.Thread(
+            target=tarea_ejecutar_pipeline,
+            args=(ruta_guardado,),
+            kwargs={'usuario_id': usuario_id},
+            daemon=True
+        )
+        thread.start()
 
-        return Response(data, status=status.HTTP_200_OK)
+        return Response({
+            "status": "accepted",
+            "message": "El archivo se ha recibido correctamente y se esta procesando en segundo plano."
+        }, status=status.HTTP_202_ACCEPTED)
 
     except Exception as e:
-        # Intentar devolver detalle estructurado al frontend
-        detalle = str(e)
-        error_tipo = e.__class__.__name__
-        return Response(
-            {
-                'error': 'Fallo al subir o procesar el archivo',
-                'detalle': detalle,
-                'tipo': error_tipo,
-            },
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+        return Response({
+            "status": "error",
+            "message": f"Ocurrio un error al recibir el archivo: {str(e)}"
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(tags=['etl'], summary='Estado de ejecucion ETL en tiempo real')
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, EsAnalistaOAdministrador])
+def estado_etl(request):
+    task = ETLTask.objects.filter(activo=True).order_by('-created_at').first()
+    if not task:
+        task = ETLTask.objects.order_by('-created_at').first()
+    if not task:
+        return Response({"activo": False, "logs": []}, status=status.HTTP_200_OK)
 
-@extend_schema(
-    tags=['etl'],
-    summary='Estadísticas agregadas del ETL',
-)
+    return Response({
+        "activo": task.activo,
+        "fase": task.fase,
+        "mensaje": task.mensaje,
+        "detalle": task.detalle,
+        "logs": task.logs,
+    }, status=status.HTTP_200_OK)
+
+
+@extend_schema(tags=['etl'], summary='Restablecer datos (eliminar pacientes, historial ETL y KPIs)')
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated, EsAnalistaOAdministrador])
+def reset_data(request):
+    try:
+        pacientes_borrados = Paciente.objects.count()
+        Paciente.objects.all().delete()
+        HistorialETL.objects.all().delete()
+        DashboardKPIs.objects.all().delete()
+        return Response({
+            "status": "success",
+            "message": f"Datos restablecidos. {pacientes_borrados} registros eliminados."
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": f"Error al restablecer datos: {str(e)}"
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@extend_schema(tags=['etl'], summary='Estadisticas agregadas del ETL')
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, EsAnalistaOAdministrador])
 def estadisticas_etl(request):
@@ -165,7 +210,6 @@ def estadisticas_etl(request):
 @extend_schema(
     tags=['etl'],
     summary='Historial de ejecuciones ETL',
-    responses={200: HistorialETLSerializer(many=True)},
 )
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, EsAnalistaOAdministrador])
@@ -177,7 +221,6 @@ def historial_etl(request):
 @extend_schema(
     tags=['etl'],
     summary='Exportar dataset limpio como CSV',
-    description='Descarga el dataset limpio (tabla Paciente) en formato CSV.',
 )
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, EsAnalistaOAdministrador])
@@ -198,18 +241,4 @@ def exportar_dataset_csv(request):
     return response
 
 
-@extend_schema(
-    tags=['etl'],
-    summary='Generar dataset clínico simulado',
-    description='Genera un nuevo dataset clínico simulado con 1800 registros e inconsistencias intencionales.',
-    responses={200: {'type': 'object'}},
-)
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, EsAnalistaOAdministrador])
-def generar_dataset_view(request):
-    try:
-        n = request.data.get('registros', 1800)
-        call_command('generar_dataset', f'--registros={n}')
-        return Response({'mensaje': f'Dataset generado con {n} registros'}, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

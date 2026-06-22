@@ -1,4 +1,4 @@
-/* auth.js — Gestión de tokens JWT y protección de rutas */
+/* auth.js — Gestion de tokens JWT y proteccion de rutas */
 
 const API = '/api';
 
@@ -9,16 +9,13 @@ async function authFetch(url, options = {}) {
   options.headers = options.headers || {};
   options.headers['Authorization'] = `Bearer ${getToken()}`;
 
-  // No forzar Content-Type cuando el body es FormData (el browser agrega boundary)
   if (!(options.body instanceof FormData)) {
     options.headers['Content-Type'] = options.headers['Content-Type'] || 'application/json';
   }
 
   let res = await fetch(url, options);
 
-
   if (res.status === 401) {
-    // Intenta refrescar token
     const refreshRes = await fetch(`${API}/auth/refresh/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -42,28 +39,24 @@ function cerrarSesion() {
   window.location.href = '/login/';
 }
 
-// Proteger páginas (redirige si no hay token)
 (function protegerRuta() {
   const rutasPublicas = ['/login/'];
   if (!rutasPublicas.includes(window.location.pathname) && !getToken()) {
     window.location.href = '/login/';
   }
-  // Mostrar nombre de usuario en sidebar
-  const el = document.getElementById('usuario-nombre');
-  if (el) {
-    const username = localStorage.getItem('username') || '—';
-    const rol = localStorage.getItem('rol') || '';
-    el.textContent = `${username} · ${rol}`;
-  }
-})();
 
-// Marca nav link activo con color blanco
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.sidebar .nav-link.active').forEach(el => {
-    el.classList.remove('text-white-50');
-    el.classList.add('text-white', 'bg-white', 'bg-opacity-10', 'rounded');
-  });
-});
+  const nombres = localStorage.getItem('nombres') || localStorage.getItem('username') || '—';
+  const rolDisplay = localStorage.getItem('rol_display') || localStorage.getItem('rol') || '';
+
+  const el = document.getElementById('usuario-nombre');
+  if (el) el.innerHTML = `${nombres}<br><span style="font-size:0.7rem;color:#6b7280;">${rolDisplay}</span>`;
+
+  const elRol = document.getElementById('usuario-rol');
+  if (elRol) elRol.textContent = rolDisplay;
+
+  const avatar = document.getElementById('user-avatar-inicial');
+  if (avatar) avatar.textContent = (username && username !== '—') ? username.charAt(0).toUpperCase() : 'U';
+})();
 
 async function descargarArchivo(url, filename) {
   try {

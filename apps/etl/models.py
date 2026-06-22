@@ -2,7 +2,7 @@ from django.db import models
 from apps.authentication.models import Usuario
 
 class Paciente(models.Model):
-    SEXO_CHOICES = [('M', 'Masculino'), ('F', 'Femenino'), ('O', 'Otro')]
+    SEXO_CHOICES = [('Masculino', 'Masculino'), ('Femenino', 'Femenino'), ('Otro', 'Otro')]
     RIESGO_CHOICES = [
         ('bajo', 'Bajo'), ('medio', 'Medio'), ('alto', 'Alto'), ('critico', 'Crítico')
     ]
@@ -18,7 +18,7 @@ class Paciente(models.Model):
     nombres          = models.CharField(max_length=100)
     apellidos        = models.CharField(max_length=100)
     edad             = models.IntegerField(null=True, blank=True)
-    sexo             = models.CharField(max_length=1, choices=SEXO_CHOICES, null=True, blank=True)
+    sexo             = models.CharField(max_length=10, choices=SEXO_CHOICES, null=True, blank=True)
     peso             = models.FloatField(null=True, blank=True)
     altura           = models.FloatField(null=True, blank=True)
     imc              = models.FloatField(null=True, blank=True)
@@ -83,3 +83,46 @@ class HistorialETL(models.Model):
 
     def __str__(self):
         return f"ETL {self.fecha_ejecucion.strftime('%Y-%m-%d %H:%M')} - {self.estado}"
+
+
+class ETLTask(models.Model):
+    task_id = models.CharField(max_length=64, unique=True)
+    activo = models.BooleanField(default=True)
+    fase = models.CharField(max_length=32, default='')
+    mensaje = models.TextField(default='', blank=True)
+    detalle = models.TextField(default='', blank=True)
+    logs = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class DashboardKPIs(models.Model):
+    fecha_calculo = models.DateTimeField(auto_now_add=True)
+
+    total_registros = models.IntegerField(default=0)
+    pacientes_criticos = models.IntegerField(default=0)
+    pacientes_hipertensos = models.IntegerField(default=0)
+    pacientes_diabeticos = models.IntegerField(default=0)
+    pacientes_fumadores = models.IntegerField(default=0)
+    pacientes_obesos = models.IntegerField(default=0)
+    pacientes_antecedentes = models.IntegerField(default=0)
+    pacientes_alcohol = models.IntegerField(default=0)
+    pacientes_saturacion_baja = models.IntegerField(default=0)
+    riesgo_promedio = models.FloatField(default=0.0)
+
+    alertas_sistolica = models.IntegerField(default=0)
+    alertas_glucosa = models.IntegerField(default=0)
+    alertas_saturacion = models.IntegerField(default=0)
+
+    edad_media = models.FloatField(default=0.0)
+    edad_mediana = models.FloatField(default=0.0)
+    edad_moda = models.FloatField(default=0.0)
+    edad_desviacion = models.FloatField(default=0.0)
+    glucosa_media = models.FloatField(default=0.0)
+    glucosa_desviacion = models.FloatField(default=0.0)
+
+    class Meta:
+        ordering = ['-fecha_calculo']

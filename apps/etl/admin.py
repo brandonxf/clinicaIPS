@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Paciente, HistorialETL
+from .models import Paciente, HistorialETL, ETLTask, DashboardKPIs
 
 @admin.register(Paciente)
 class PacienteAdmin(admin.ModelAdmin):
@@ -14,3 +14,12 @@ class HistorialETLAdmin(admin.ModelAdmin):
                     'registros_limpios', 'estado', 'tiempo_ejecucion_seg']
     list_filter = ['estado']
     readonly_fields = ['log_detalle', 'errores']
+
+@admin.register(ETLTask)
+class ETLTaskAdmin(admin.ModelAdmin):
+    list_display = ['task_id', 'activo', 'fase', 'created_at']
+    list_filter = ['activo', 'fase']
+
+@admin.register(DashboardKPIs)
+class DashboardKPIsAdmin(admin.ModelAdmin):
+    list_display = ['fecha_calculo', 'total_registros', 'pacientes_criticos', 'riesgo_promedio']

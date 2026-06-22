@@ -119,7 +119,7 @@ def predecir_paciente(paciente_id: int, modelo_id: int = None) -> dict:
     """Predice riesgo para un paciente específico cargando el modelo desde el disco."""
     from apps.etl.models import Paciente as P
     try:
-        paciente = P.objects.get(id=paciente_id)
+        paciente = P.objects.get(id_paciente=paciente_id)
     except P.DoesNotExist:
         raise ValueError(f"Paciente con ID {paciente_id} no existe en el sistema.")
 
@@ -183,6 +183,17 @@ def predecir_paciente(paciente_id: int, modelo_id: int = None) -> dict:
 
     return {
         'paciente_id': paciente_id,
+        'paciente': {
+            'nombres': paciente.nombres,
+            'apellidos': paciente.apellidos,
+            'edad': paciente.edad,
+            'sexo': paciente.sexo,
+            'diagnostico_preliminar': paciente.diagnostico_preliminar,
+            'imc': paciente.imc,
+            'glucosa': paciente.glucosa,
+            'presion_sistolica': paciente.presion_sistolica,
+            'riesgo_actual': paciente.riesgo_enfermedad,
+        },
         'riesgo_predicho': riesgo,
         'probabilidad': probabilidad,
         'distribucion_clases': dict(zip(le.classes_, proba.tolist())),

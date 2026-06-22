@@ -640,10 +640,13 @@ async function login() {
     const data = await res.json();
 
     if (res.ok) {
-      localStorage.setItem('access',   data.access);
-      localStorage.setItem('refresh',  data.refresh);
-      localStorage.setItem('username', data.username || username);
-      localStorage.setItem('rol',      data.rol || '');
+      localStorage.setItem('access',      data.access);
+      localStorage.setItem('refresh',     data.refresh);
+      localStorage.setItem('username',    data.username || username);
+      localStorage.setItem('rol',         data.rol || '');
+      localStorage.setItem('rol_display', data.rol_display || '');
+      localStorage.setItem('nombres',     data.nombres || data.username || username);
+      localStorage.setItem('email',       data.email || '');
       window.location.href = '/';
     } else {
       errText.textContent = data.detail || 'Credenciales inválidas.';

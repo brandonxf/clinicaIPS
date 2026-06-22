@@ -26,9 +26,16 @@ class LoginView(TokenObtainPairView):
         serializer.is_valid(raise_exception=True)
         django_login(request, serializer.user)
         response = super().post(request, *args, **kwargs)
-        response.data['username'] = serializer.user.username
-        response.data['rol'] = serializer.user.rol
+        user = serializer.user
+        response.data['username'] = user.username
+        response.data['rol'] = user.rol
+        response.data['rol_display'] = user.get_rol_display()
+        response.data['nombres'] = user.get_full_name() or user.username
+        response.data['email'] = user.email
         return response
+
+    def get_serializer_context(self):
+        return {'request': self.request}
 
 
 @extend_schema(
