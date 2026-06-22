@@ -78,8 +78,8 @@ def _limpiar_tipos(df: pd.DataFrame, logs: list) -> tuple[pd.DataFrame, int]:
     corregidos = 0
     col_map = {
         'edad': 'int', 'peso': 'float', 'altura': 'float', 'IMC': 'float',
-        'presión_sistólica': 'int', 'presión_diastólica': 'int',
-        'frecuencia_cardiaca': 'int', 'glucosa': 'float',
+        'presión_sistólica': 'float', 'presión_diastólica': 'float',
+        'frecuencia_cardiaca': 'float', 'glucosa': 'float',
         'colesterol': 'float', 'saturación_oxígeno': 'float', 'temperatura': 'float',
     }
     for col, tipo in col_map.items():
@@ -235,9 +235,9 @@ def load(df: pd.DataFrame, logs: list) -> int:
             altura=None if pd.isna(row.get('altura')) else float(row['altura']),
             imc=None if pd.isna(row.get('imc')) else float(row['imc']),
             clasificacion_imc=row.get('clasificacion_imc'),
-            presion_sistolica=None if pd.isna(row.get('presion_sistolica')) else int(row['presion_sistolica']),
-            presion_diastolica=None if pd.isna(row.get('presion_diastolica')) else int(row['presion_diastolica']),
-            frecuencia_cardiaca=None if pd.isna(row.get('frecuencia_cardiaca')) else int(row['frecuencia_cardiaca']),
+            presion_sistolica=None if pd.isna(row.get('presion_sistolica')) else float(row['presion_sistolica']),
+            presion_diastolica=None if pd.isna(row.get('presion_diastolica')) else float(row['presion_diastolica']),
+            frecuencia_cardiaca=None if pd.isna(row.get('frecuencia_cardiaca')) else float(row['frecuencia_cardiaca']),
             glucosa=None if pd.isna(row.get('glucosa')) else float(row['glucosa']),
             colesterol=None if pd.isna(row.get('colesterol')) else float(row['colesterol']),
             saturacion_oxigeno=None if pd.isna(row.get('saturacion_oxigeno')) else float(row['saturacion_oxigeno']),

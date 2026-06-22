@@ -346,13 +346,7 @@
   <div class="table-header">
     <h6>Lista de Pacientes <span class="badge" id="badge-total">0</span></h6>
     <div class="export-btns">
-      <button onclick="descargarArchivo('/api/reportes/csv/', 'pacientes.csv')" class="export-btn">
-        <i class="bi bi-filetype-csv"></i>CSV
-      </button>
-      <button onclick="descargarArchivo('/api/reportes/excel/', 'reporte_pacientes.xlsx')" class="export-btn">
-        <i class="bi bi-file-earmark-excel"></i>Excel
-      </button>
-      <button onclick="descargarArchivo('/api/reportes/pdf/', 'reporte_analitica_clinica.pdf')" class="export-btn">
+      <button onclick="descargarConFiltros('/api/reportes/pdf/', 'reporte_analitica_clinica.pdf')" class="export-btn">
         <i class="bi bi-file-earmark-pdf"></i>PDF
       </button>
     </div>
@@ -372,11 +366,13 @@
           <th>Diagnóstico</th>
           <th>Riesgo</th>
           <th>Estado</th>
+          <th>Predicción</th>
+          <th>Acciones</th>
         </tr>
       </thead>
       <tbody id="pacientes-tbody">
         <tr>
-          <td colspan="10">
+          <td colspan="12">
             <div class="loading-state">
               <div class="spinner-border spinner-border-sm"></div>
               Cargando pacientes...
@@ -394,8 +390,57 @@
     </nav>
   </div>
 </div>
+<!-- Modal Editar Paciente -->
+<div class="modal fade" id="modalEditar" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #f0f0f0;">
+        <h6 class="modal-title fw-bold">Editar Paciente</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="formEditar" onsubmit="guardarEdicion(event)">
+        <div class="modal-body">
+          <div class="row g-3" id="editar-body">
+            <div class="text-center py-3">
+              <div class="spinner-border spinner-border-sm"></div>
+              Cargando...
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid #f0f0f0;">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary btn-sm">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Resultado Predicción -->
+<div class="modal fade" id="modalPrediccion" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #f0f0f0;">
+        <h6 class="modal-title fw-bold">Resultado de Predicción</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="prediccion-body">
+        <div class="text-center py-3">
+          <div class="spinner-border spinner-border-sm"></div>
+          Procesando...
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid #f0f0f0;">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+<script>
+  window.USER_ROL = '{{ user_rol }}';
+</script>
 <script src="{% static 'js/pacientes.js' %}"></script>
 {% endblock %}

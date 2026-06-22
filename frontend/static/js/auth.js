@@ -58,11 +58,40 @@ function cerrarSesion() {
   if (avatar) avatar.textContent = (username && username !== '—') ? username.charAt(0).toUpperCase() : 'U';
 })();
 
+function mostrarToast(mensaje, tipo = 'success') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const colors = { success: '#059669', error: '#dc2626', info: '#0bb8a4', warning: '#ea580c' };
+  const bg = colors[tipo] || colors.info;
+  const icon = { success: 'bi-check-circle-fill', error: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill', warning: 'bi-exclamation-circle-fill' };
+  const toast = document.createElement('div');
+  toast.className = 'toast align-items-center border-0 show';
+  toast.setAttribute('role', 'alert');
+  toast.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body" style="font-size:0.85rem;">
+        <i class="bi ${icon[tipo] || icon.info} me-2"></i>${mensaje}
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>`;
+  toast.style.background = bg;
+  toast.style.color = 'white';
+  toast.style.borderRadius = '10px';
+  container.appendChild(toast);
+  setTimeout(() => { toast.remove(); }, 4000);
+}
+
 async function descargarArchivo(url, filename) {
   try {
+    mostrarToast('Generando archivo...', 'info');
     const res = await authFetch(url);
     if (!res || !res.ok) {
-      alert("Error al descargar el archivo");
+      let msg = 'Error al descargar el archivo';
+      try {
+        const err = await res.json();
+        if (err.error) msg = err.error;
+      } catch(e) {}
+      mostrarToast(msg, 'error');
       return;
     }
     const blob = await res.blob();
@@ -74,7 +103,9 @@ async function descargarArchivo(url, filename) {
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(blobUrl);
+    mostrarToast(`Descarga completada: ${filename}`, 'success');
   } catch (e) {
     console.error("Error descargando archivo:", e);
+    mostrarToast('Error al descargar el archivo: ' + e.message, 'error');
   }
 }

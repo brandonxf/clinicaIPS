@@ -19,3 +19,7 @@ class EsMedicoOAdministrador(BasePermission):
 class EsAnalistaOAdministrador(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.rol in ('analista', 'administrador')
+
+class EsMedicoAnalistaOAdministrador(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.rol in ('medico', 'analista', 'administrador')

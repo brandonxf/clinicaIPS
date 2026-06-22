@@ -19,16 +19,18 @@ from .analytics import recalcular_kpis_desde_db
 from .tasks import ejecutar_pipeline as tarea_ejecutar_pipeline
 
 
-class PacienteViewSet(viewsets.ReadOnlyModelViewSet):
+class PacienteViewSet(viewsets.ModelViewSet):
     queryset = Paciente.objects.all()
     serializer_class = PacienteSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [SearchFilter]
 
     def get_permissions(self):
+        from apps.authentication.permissions import EsMedicoOAdministrador, EsAdministrador
         if self.action in ('list', 'retrieve'):
-            from apps.authentication.permissions import EsMedicoOAdministrador
             return [IsAuthenticated(), EsMedicoOAdministrador()]
+        if self.action in ('update', 'partial_update'):
+            return [IsAuthenticated(), EsAdministrador()]
         return [IsAuthenticated(), EsAnalistaOAdministrador()]
     search_fields = ['nombres', 'apellidos', 'id_paciente']
 

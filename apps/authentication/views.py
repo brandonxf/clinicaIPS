@@ -1,11 +1,13 @@
 from django.contrib.auth import login as django_login
-from rest_framework import status
+from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from drf_spectacular.utils import extend_schema
+from apps.authentication.permissions import EsAdministrador
 from .serializers import RegistroSerializer, UsuarioSerializer, CustomTokenSerializer
+from .models import Usuario
 
 
 @extend_schema(
@@ -65,3 +67,23 @@ def registro(request):
 @permission_classes([IsAuthenticated])
 def perfil(request):
     return Response(UsuarioSerializer(request.user).data)
+
+
+class UsuarioViewSet(viewsets.ModelViewSet):
+    queryset = Usuario.objects.all()
+    serializer_class = UsuarioSerializer
+    permission_classes = [IsAuthenticated, EsAdministrador]
+
+    def perform_create(self, serializer):
+        password = self.request.data.get('password')
+        user = serializer.save()
+        if password:
+            user.set_password(password)
+            user.save()
+
+    def perform_update(self, serializer):
+        user = serializer.save()
+        password = self.request.data.get('password')
+        if password:
+            user.set_password(password)
+            user.save()

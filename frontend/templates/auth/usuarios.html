@@ -1,0 +1,210 @@
+{% extends "base/base.html" %}
+{% load static %}
+
+{% block title %}Usuarios — HealthAnalytics IPS{% endblock %}
+{% block nav_usuarios %}active{% endblock %}
+{% block page_title %}Gestión de Usuarios{% endblock %}
+
+{% block content %}
+<style>
+  .users-card { background:white; border-radius:14px; border:1px solid #e5e7eb; overflow:hidden; }
+  .users-header { padding:1rem 1.5rem; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #f0f0f0; }
+  .users-header h6 { font-weight:700; color:#080e1c; font-size:0.95rem; margin:0; }
+  .users-table { width:100%; border-collapse:collapse; }
+  .users-table thead th { padding:0.75rem 1rem; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.07em; font-weight:700; color:#8899aa; background:#fafbfc; border-bottom:1px solid #f0f0f0; white-space:nowrap; }
+  .users-table tbody tr { transition:all 0.2s; border-bottom:1px solid #f5f5f5; }
+  .users-table tbody tr:hover { background:rgba(16,229,204,0.03); }
+  .users-table td { padding:0.75rem 1rem; font-size:0.85rem; color:#1a2635; vertical-align:middle; }
+  .role-badge { padding:0.25rem 0.6rem; border-radius:8px; font-size:0.72rem; font-weight:600; }
+  .role-admin { background:rgba(239,68,68,0.1); color:#dc2626; }
+  .role-medico { background:rgba(16,185,129,0.1); color:#059669; }
+  .role-analista { background:rgba(249,115,22,0.1); color:#ea580c; }
+  .btn-icon { border-radius:8px; font-size:0.72rem; padding:0.25rem 0.5rem; white-space:nowrap; }
+</style>
+
+<div class="users-card">
+  <div class="users-header">
+    <h6>Usuarios del Sistema <span class="badge" style="background:rgba(16,229,204,0.12);color:#0bb8a4;font-weight:600;font-size:0.75rem;padding:0.35rem 0.65rem;border-radius:8px;margin-left:0.5rem;" id="user-count">0</span></h6>
+    <button class="export-btn" onclick="abrirCrearUsuario()" style="padding:0.4rem 0.75rem;border-radius:8px;font-size:0.78rem;font-weight:500;border:1px solid #e5e7eb;background:white;color:#5a6577;cursor:pointer;display:flex;align-items:center;gap:0.35rem;">
+      <i class="bi bi-person-plus"></i>Nuevo Usuario
+    </button>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Username</th>
+          <th>Email</th>
+          <th>Nombre</th>
+          <th>Rol</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="usuarios-tbody">
+        <tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm me-2"></div>Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal Crear/Editar Usuario -->
+<div class="modal fade" id="modalUsuario" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #f0f0f0;">
+        <h6 class="modal-title fw-bold" id="modalUsuarioTitle">Nuevo Usuario</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="formUsuario" onsubmit="guardarUsuario(event)">
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" style="font-size:0.78rem;font-weight:600;">Username</label>
+              <input type="text" class="form-control form-control-sm" name="username" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" style="font-size:0.78rem;font-weight:600;">Email</label>
+              <input type="email" class="form-control form-control-sm" name="email">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" style="font-size:0.78rem;font-weight:600;">Nombres</label>
+              <input type="text" class="form-control form-control-sm" name="first_name">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" style="font-size:0.78rem;font-weight:600;">Apellidos</label>
+              <input type="text" class="form-control form-control-sm" name="last_name">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" style="font-size:0.78rem;font-weight:600;">Rol</label>
+              <select class="form-select form-select-sm" name="rol">
+                <option value="administrador">Administrador</option>
+                <option value="medico">Médico</option>
+                <option value="analista">Analista</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" style="font-size:0.78rem;font-weight:600;">Contraseña</label>
+              <input type="password" class="form-control form-control-sm" name="password" id="user-password" placeholder="••••••••">
+              <small class="text-muted" style="font-size:0.7rem;" id="password-helper">Mín. 8 caracteres</small>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid #f0f0f0;">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let editandoUsuarioId = null;
+
+async function cargarUsuarios() {
+  try {
+    const res = await authFetch('/api/auth/usuarios/');
+    if (!res) return;
+    const data = await res.json();
+    const tbody = document.getElementById('usuarios-tbody');
+    const usuarios = data.results || data;
+    if (!usuarios.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">No hay usuarios registrados</td></tr>';
+      return;
+    }
+    document.getElementById('user-count').textContent = data.count ?? usuarios.length;
+    const roleMap = { administrador: 'Admin', medico: 'Médico', analista: 'Analista' };
+    tbody.innerHTML = usuarios.map(u => `
+      <tr>
+        <td>${u.id}</td>
+        <td><strong>${u.username}</strong></td>
+        <td>${u.email || '—'}</td>
+        <td>${[u.first_name, u.last_name].filter(Boolean).join(' ') || '—'}</td>
+        <td><span class="role-badge role-${u.rol}">${roleMap[u.rol] || u.rol}</span></td>
+        <td>
+          <button class="btn btn-sm btn-outline-warning btn-icon me-1" onclick="editarUsuario(${u.id})" title="Editar"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger btn-icon" onclick="eliminarUsuario(${u.id}, '${u.username}')" title="Eliminar"><i class="bi bi-trash"></i></button>
+        </td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    document.getElementById('usuarios-tbody').innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">Error: ${e.message}</td></tr>`;
+  }
+}
+
+function abrirCrearUsuario() {
+  editandoUsuarioId = null;
+  document.getElementById('modalUsuarioTitle').textContent = 'Nuevo Usuario';
+  document.getElementById('formUsuario').reset();
+  document.getElementById('password-helper').textContent = 'Mín. 8 caracteres';
+  document.getElementById('user-password').required = true;
+  new bootstrap.Modal(document.getElementById('modalUsuario')).show();
+}
+
+async function editarUsuario(id) {
+  editandoUsuarioId = id;
+  document.getElementById('modalUsuarioTitle').textContent = 'Editar Usuario';
+  document.getElementById('user-password').required = false;
+  document.getElementById('password-helper').textContent = 'Dejar vacío para mantener la actual';
+  try {
+    const res = await authFetch(`/api/auth/usuarios/${id}/`);
+    if (!res) return;
+    const u = await res.json();
+    document.querySelector('[name="username"]').value = u.username;
+    document.querySelector('[name="email"]').value = u.email || '';
+    document.querySelector('[name="first_name"]').value = u.first_name || '';
+    document.querySelector('[name="last_name"]').value = u.last_name || '';
+    document.querySelector('[name="rol"]').value = u.rol;
+    document.querySelector('[name="password"]').value = '';
+    new bootstrap.Modal(document.getElementById('modalUsuario')).show();
+  } catch(e) {
+    mostrarToast('Error al cargar usuario: ' + e.message, 'error');
+  }
+}
+
+async function guardarUsuario(e) {
+  e.preventDefault();
+  const form = document.getElementById('formUsuario');
+  const data = Object.fromEntries(new FormData(form));
+  const url = editandoUsuarioId ? `/api/auth/usuarios/${editandoUsuarioId}/` : '/api/auth/usuarios/';
+  const method = editandoUsuarioId ? 'PATCH' : 'POST';
+
+  if (method === 'PATCH' && !data.password) delete data.password;
+
+  try {
+    const res = await authFetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res || !res.ok) {
+      const err = await res.json();
+      const msg = Object.values(err).flat().join(', ');
+      throw new Error(msg || 'Error al guardar');
+    }
+    bootstrap.Modal.getInstance(document.getElementById('modalUsuario')).hide();
+    mostrarToast(editandoUsuarioId ? 'Usuario actualizado' : 'Usuario creado', 'success');
+    cargarUsuarios();
+  } catch(e) {
+    mostrarToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function eliminarUsuario(id, username) {
+  if (!confirm(`¿Eliminar usuario "${username}"?`)) return;
+  try {
+    const res = await authFetch(`/api/auth/usuarios/${id}/`, { method: 'DELETE' });
+    if (!res || !res.ok) throw new Error('No se pudo eliminar');
+    mostrarToast(`Usuario "${username}" eliminado`, 'success');
+    cargarUsuarios();
+  } catch(e) {
+    mostrarToast('Error: ' + e.message, 'error');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', cargarUsuarios);
+</script>
+{% endblock %}

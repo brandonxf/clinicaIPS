@@ -20,7 +20,16 @@ class MlView(RoleRequiredMixin, TemplateView):
 
 class PacientesView(RoleRequiredMixin, TemplateView):
     template_name = 'dashboard/pacientes.html'
-    allowed_roles = ['medico', 'administrador']
+    allowed_roles = ['medico', 'administrador', 'analista']
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['user_rol'] = self.request.user.rol if self.request.user.is_authenticated else ''
+        return context
+
+class UsuariosView(RoleRequiredMixin, TemplateView):
+    template_name = 'auth/usuarios.html'
+    allowed_roles = ['administrador']
 
 urlpatterns = [
     path('', HomeView.as_view(), name='home'),
@@ -28,4 +37,5 @@ urlpatterns = [
     path('etl/', EtlView.as_view(), name='etl_page'),
     path('ml/', MlView.as_view(), name='ml_page'),
     path('pacientes/', PacientesView.as_view(), name='pacientes_page'),
+    path('usuarios/', UsuariosView.as_view(), name='usuarios_page'),
 ]
