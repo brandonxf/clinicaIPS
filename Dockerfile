@@ -33,4 +33,4 @@ COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+CMD gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 1 --max-requests 500 --max-requests-jitter 100
