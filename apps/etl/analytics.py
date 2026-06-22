@@ -1,8 +1,8 @@
+import pandas as pd
 from .models import DashboardKPIs, Paciente
 
 
 def pacientes_a_dataframe():
-    import pandas as pd
     rows = list(Paciente.objects.all().values(
         'id_paciente', 'nombres', 'apellidos', 'edad', 'sexo', 'peso', 'altura', 'imc',
         'clasificacion_imc', 'presion_sistolica', 'presion_diastolica', 'frecuencia_cardiaca',
