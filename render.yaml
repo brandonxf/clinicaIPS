@@ -14,28 +14,10 @@ services:
         value: False
       - key: ALLOWED_HOSTS
         value: .onrender.com,localhost,127.0.0.1
-      - key: DB_ENGINE
-        value: django.db.backends.postgresql
-      - key: DB_NAME
+      - key: DATABASE_URL
         fromDatabase:
           name: clinica-ips-db
-          property: database
-      - key: DB_USER
-        fromDatabase:
-          name: clinica-ips-db
-          property: user
-      - key: DB_PASSWORD
-        fromDatabase:
-          name: clinica-ips-db
-          property: password
-      - key: DB_HOST
-        fromDatabase:
-          name: clinica-ips-db
-          property: host
-      - key: DB_PORT
-        fromDatabase:
-          name: clinica-ips-db
-          property: port
+          property: connectionString
 
 databases:
   - name: clinica-ips-db
