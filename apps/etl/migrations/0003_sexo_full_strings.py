@@ -17,10 +17,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(convertir_sexo, migrations.RunPython.noop),
         migrations.AlterField(
             model_name='paciente',
             name='sexo',
             field=models.CharField(blank=True, choices=[('Masculino', 'Masculino'), ('Femenino', 'Femenino'), ('Otro', 'Otro')], max_length=10, null=True),
         ),
+        migrations.RunPython(convertir_sexo, migrations.RunPython.noop),
     ]
